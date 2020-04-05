@@ -3,6 +3,7 @@ import AVFoundation
 class MoodbellState: ObservableObject {
   @Published var connection = ""
   @Published var ringing = false
+  @Published var leds = [StateLed: Int]()
 
   private let ringSystemSoundId = SystemSoundID(1005)
   private let ringDurationSec = 2.0
@@ -20,6 +21,7 @@ class MoodbellState: ObservableObject {
   }
 
   func setLed(_ led: StateLed, value: Int) {
+    leds[led] = value
     sendCommand("LED \(led.rawValue) \(value)")
   }
 

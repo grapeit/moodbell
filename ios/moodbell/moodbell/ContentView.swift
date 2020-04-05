@@ -14,41 +14,43 @@ struct ContentView: View {
       Spacer()
       LedSwitchesArrayView()
       Spacer()
-      Text(state.connection)
-      Spacer()
+      Text(state.connection).padding()
     }.padding()
   }
 }
 
 struct LedSwitchesArrayView: View {
+  @EnvironmentObject var state: MoodbellState
+
   var body: some View {
     HStack(spacing: 25) {
       ForEach(StateLed.allCases.reversed(), id: \.self) { led in
-        LedSwitchView(led: led)
+        LedSwitchView(color: led.color, value: self.state.bindLedValue(led))
       }
     }
   }
 }
 
 struct LedSwitchView: View {
-  @EnvironmentObject var state: MoodbellState
-  @State private var on = false
-
-  let led: StateLed
+  let color: Color
+  @Binding var value: Int
 
   var body: some View {
     Button(action: {
-      self.on.toggle()
-      self.state.setLed(self.led, value: self.on ? 255 : 0)
+      self.value = self.value == 0 ? 255 : 0
     }, label: {
-      Circle().fill(led.color).frame(width: 60, height: 60).opacity(self.on ? 1.0 : 0.3)
+      Circle().fill(color).frame(width: 60, height: 60).opacity(value > 0 ? 1.0 : 0.3)
     })
   }
 }
 
-struct ContentView_Previews: PreviewProvider {
-  static var previews: some View {
-    ContentView().environmentObject(MoodbellState())
+extension MoodbellState {
+  func bindLedValue(_ led: StateLed) -> Binding<Int> {
+    Binding(get: {
+      self.leds[led] ?? 0
+    }, set: { value in
+      self.setLed(led, value: value)
+    })
   }
 }
 
@@ -66,3 +68,10 @@ extension StateLed {
     }
   }
 }
+
+struct ContentView_Previews: PreviewProvider {
+  static var previews: some View {
+    ContentView().environmentObject(MoodbellState())
+  }
+}
+
