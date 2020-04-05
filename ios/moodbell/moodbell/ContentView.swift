@@ -2,20 +2,41 @@ import SwiftUI
 
 struct ContentView: View {
   @EnvironmentObject var state: MoodbellState
-  @State var message = ""
 
   var body: some View {
     VStack {
-      TextField("Put your message here", text: $message) {
-        self.state.setText(self.message)
-      }.padding()
+      TextField("Put your message here", text: $state.textMessage)
+        .modifier(ClearButton(text: $state.textMessage))
+        .padding()
+      Spacer()
+      Slider(value: $state.backlight, in: 0.0...1.0, step: 0.005).padding()
       Spacer()
       Text(state.ringing ? "🔔🔔🔔" : " ").padding()
       Spacer()
-      LedSwitchesArrayView()
+      if state.lightSensor > 0 {
+        AmbientLightIndicatorView(value: $state.lightSensor)
+      } else {
+        AmbientLightIndicatorView(value: $state.lightSensor).hidden()
+      }
       Spacer()
-      Text(state.connection).padding()
+      LedSwitchesArrayView()
+      Text(state.connectionStatus).padding()
     }.padding()
+  }
+}
+
+struct AmbientLightIndicatorView: View {
+  @Binding var value: Double
+
+  var body: some View {
+    ZStack {
+      Circle()
+        .fill(Color(red: 0.2, green: 0.2, blue: 0.0))
+        .brightness(value)
+        .overlay(Circle().stroke(Color.primary, lineWidth: 1))
+      Text(String(format: "%.0f%%", value * 100.0))
+        .foregroundColor(value >= 0.33 ? Color.black : Color.white)
+    }.frame(width: 80, height: 80)
   }
 }
 
@@ -33,21 +54,39 @@ struct LedSwitchesArrayView: View {
 
 struct LedSwitchView: View {
   let color: Color
-  @Binding var value: Int
+  @Binding var value: Double
 
   var body: some View {
     Button(action: {
-      self.value = self.value == 0 ? 255 : 0
+      self.value = self.value == 0.0 ? 1.0 : 0.0
     }, label: {
-      Circle().fill(color).frame(width: 60, height: 60).opacity(value > 0 ? 1.0 : 0.3)
+      Circle()
+        .fill(color)
+        .frame(width: 60, height: 60).opacity(value > 0.0 ? 1.0 : 0.3)
+        .overlay(Circle().stroke(Color.primary, lineWidth: 0.5))
     })
   }
 }
 
+struct ClearButton: ViewModifier {
+    @Binding var text: String
+
+    public func body(content: Content) -> some View {
+        HStack {
+            content
+            Spacer()
+            Image(systemName: "multiply.circle.fill")
+              .foregroundColor(.secondary)
+              .opacity(text.isEmpty ? 0 : 0.5)
+              .onTapGesture { self.text = "" }
+        }
+    }
+}
+
 extension MoodbellState {
-  func bindLedValue(_ led: StateLed) -> Binding<Int> {
+  func bindLedValue(_ led: StateLed) -> Binding<Double> {
     Binding(get: {
-      self.leds[led] ?? 0
+      self.leds[led] ?? 0.0
     }, set: { value in
       self.setLed(led, value: value)
     })
@@ -74,4 +113,3 @@ struct ContentView_Previews: PreviewProvider {
     ContentView().environmentObject(MoodbellState())
   }
 }
-

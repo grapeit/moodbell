@@ -1,9 +1,20 @@
 import AVFoundation
 
 class MoodbellState: ObservableObject {
-  @Published var connection = ""
+  @Published var connectionStatus = ""
+  @Published var backlight: Double = 0.5 {
+    didSet {
+      setBacklight(backlight)
+    }
+  }
+  @Published var textMessage: String = "" {
+    didSet {
+      self.setTextMessage(self.textMessage)
+    }
+  }
+  @Published var lightSensor = 0.0
   @Published var ringing = false
-  @Published var leds = [StateLed: Int]()
+  @Published var leds = [StateLed: Double]()
 
   private let ringSystemSoundId = SystemSoundID(1005)
   private let ringDurationSec = 2.0
@@ -16,13 +27,17 @@ class MoodbellState: ObservableObject {
     btConnection.start()
   }
 
-  func setText(_ text: String) {
+  func setBacklight(_ value: Double) {
+    sendCommand("BACK \(value.to256Range())")
+  }
+
+  func setTextMessage(_ text: String) {
     sendCommand("TXT " + text.replacingOccurrences(of: "’", with: "'"))
   }
 
-  func setLed(_ led: StateLed, value: Int) {
+  func setLed(_ led: StateLed, value: Double) {
     leds[led] = value
-    sendCommand("LED \(led.rawValue) \(value)")
+    sendCommand("LED \(led.rawValue) \(value.to256Range())")
   }
 
   private func sendCommand(_ command: String) {
@@ -34,9 +49,29 @@ class MoodbellState: ObservableObject {
   }
 
   private func processInput(_ input: String) {
-    if input == "RING" {
+    print(input)
+    if input.starts(with: "MOODBELL ") {
+      handshake(input)
+    } else if input.starts(with: "LIGHT ") {
+      if let value = Int(input[input.index(input.startIndex, offsetBy: 6)...]) {
+        light(value)
+      }
+    } else if input == "RING" {
       ring()
     }
+  }
+
+  private func handshake(_ input: String) {
+    connectionStatus = "ready"
+    setBacklight(backlight)
+    setTextMessage(textMessage)
+    leds.forEach { (led, value) in
+      setLed(led, value: value)
+    }
+  }
+
+  private func light(_ value: Int) {
+    lightSensor = Double(value) / 1024.0
   }
 
   private func ring() {
@@ -51,7 +86,12 @@ class MoodbellState: ObservableObject {
 
 extension MoodbellState: BtConnectionDelegate {
   func status(_ status: String) {
-    connection = status
+    connectionStatus = status
+    if status == "connected" {
+      sendCommand("HELLO")
+    } else {
+      lightSensor = 0.0
+    }
   }
 
   func update(_ data: Data) {
@@ -65,6 +105,12 @@ extension MoodbellState: BtConnectionDelegate {
       }
       dataCollected = dataCollected[dataCollected.index(i, offsetBy: 1)...]
     }
+  }
+}
+
+extension Double {
+  func to256Range() -> Int {
+    return Int((self * 255).rounded())
   }
 }
 
